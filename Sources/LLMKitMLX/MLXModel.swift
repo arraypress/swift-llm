@@ -96,9 +96,26 @@ public struct MLXModel: Sendable, Equatable {
         id: "llama-3.1-8b", repoID: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
         displayName: "Llama 3.1 8B", approximateSizeMB: 4_500, license: "Llama 3.1 Community", runsOnMobile: false)
 
+    // MARK: - Uncensored / creative writing
+    // "Josiefied" = Qwen3 abliterated (refusal direction removed) AND re-tuned
+    // for compliant, natural prose. The mainstream instruct models refuse adult
+    // or edgy creative writing; these don't. Base is Qwen3, so Apache-2.0. Still
+    // reasoning models (emit a <think> block — use String.splitReasoning()).
+
+    /// Josiefied Qwen3 4B (abliterated, 4-bit) — uncensored, same footprint as `qwen3_4B`.
+    public static let josiefiedQwen3_4B = MLXModel(
+        id: "josiefied-qwen3-4b", repoID: "mlx-community/Josiefied-Qwen3-4B-abliterated-v1-4bit",
+        displayName: "Qwen3 4B (uncensored)", approximateSizeMB: 2_400, license: "Apache-2.0", runsOnMobile: true)
+
+    /// Josiefied Qwen3 8B (abliterated, 4-bit) — uncensored, richer prose; Mac-class.
+    public static let josiefiedQwen3_8B = MLXModel(
+        id: "josiefied-qwen3-8b", repoID: "mlx-community/Josiefied-Qwen3-8B-abliterated-v1-4bit",
+        displayName: "Qwen3 8B (uncensored)", approximateSizeMB: 4_500, license: "Apache-2.0", runsOnMobile: false)
+
     /// Every curated model.
     public static let all: [MLXModel] = [
         .qwen3_0_6B, .qwen3_1_7B, .qwen3_4B, .phi4Mini, .smolLM3_3B, .mistralSmall3,
         .llama3_2_1B, .llama3_2_3B, .llama3_1_8B,
+        .josiefiedQwen3_4B, .josiefiedQwen3_8B,
     ]
 }
