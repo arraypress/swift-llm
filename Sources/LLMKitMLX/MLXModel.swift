@@ -17,6 +17,7 @@ public struct MLXModel: Sendable, Equatable {
     /// A section for grouping models by purpose.
     public enum Group: String, Sendable, CaseIterable {
         case general = "General"
+        case vision = "Vision (see images)"
         case uncensored = "Uncensored"
         case creative = "Creative & NSFW"
     }
@@ -39,14 +40,18 @@ public struct MLXModel: Sendable, Equatable {
     public let runsOnMobile: Bool
     /// Which purpose section this model belongs to.
     public let group: Group
+    /// Whether the model accepts image input (a VLM).
+    public let supportsVision: Bool
 
     public init(
         id: String, repoID: String, displayName: String, maker: String, blurb: String,
-        approximateSizeMB: Int, license: String, runsOnMobile: Bool, group: Group = .general
+        approximateSizeMB: Int, license: String, runsOnMobile: Bool,
+        group: Group = .general, supportsVision: Bool = false
     ) {
         self.id = id; self.repoID = repoID; self.displayName = displayName
         self.maker = maker; self.blurb = blurb; self.approximateSizeMB = approximateSizeMB
-        self.license = license; self.runsOnMobile = runsOnMobile; self.group = group
+        self.license = license; self.runsOnMobile = runsOnMobile
+        self.group = group; self.supportsVision = supportsVision
     }
 
     // Makers (kept as constants so grouping/ordering stays consistent).
@@ -119,6 +124,26 @@ public struct MLXModel: Sendable, Equatable {
         maker: google, blurb: "Google's flagship open model.",
         approximateSizeMB: 16_000, license: "Gemma Terms", runsOnMobile: false)
 
+    // MARK: - Vision (accept image input)
+
+    public static let qwen3VL_4B = MLXModel(
+        id: "qwen3-vl-4b", repoID: "mlx-community/Qwen3-VL-4B-Instruct-4bit", displayName: "Qwen3-VL 4B",
+        maker: qwen, blurb: "Sees images — describe, read, or reason about a picture.",
+        approximateSizeMB: 3_100, license: "Apache-2.0", runsOnMobile: true,
+        group: .vision, supportsVision: true)
+
+    public static let qwen3VL_8B = MLXModel(
+        id: "qwen3-vl-8b", repoID: "mlx-community/Qwen3-VL-8B-Instruct-4bit", displayName: "Qwen3-VL 8B",
+        maker: qwen, blurb: "Bigger vision model — sharper image understanding.",
+        approximateSizeMB: 5_800, license: "Apache-2.0", runsOnMobile: false,
+        group: .vision, supportsVision: true)
+
+    public static let gemma3VL_4B = MLXModel(
+        id: "gemma3-vl-4b", repoID: "mlx-community/gemma-3-4b-it-4bit", displayName: "Gemma 3 4B (vision)",
+        maker: google, blurb: "Google's multimodal Gemma — a different vision voice.",
+        approximateSizeMB: 3_400, license: "Gemma Terms", runsOnMobile: true,
+        group: .vision, supportsVision: true)
+
     // MARK: - Uncensored (abliterated; refusals removed)
 
     public static let josiefiedQwen3_4B = MLXModel(
@@ -182,6 +207,7 @@ public struct MLXModel: Sendable, Equatable {
     public static let all: [MLXModel] = [
         .qwen3_0_6B, .qwen3_1_7B, .qwen3_4B, .phi4Mini, .smolLM3_3B, .mistralSmall3,
         .llama3_2_1B, .llama3_2_3B, .llama3_1_8B, .gptOSS20B, .gemma3_27B,
+        .qwen3VL_4B, .qwen3VL_8B, .gemma3VL_4B,
         .josiefiedQwen3_4B, .josiefiedQwen3_8B, .huihuiQwen3_5_9B, .huihuiQwen3_5_27B,
         .qwen3_6_35B_moe, .llama3_1_8B_uncensored, .gemma3_12B_uncensored, .gptOSS20B_uncensored,
         .cydonia24B, .rocinante12B, .museWriter,

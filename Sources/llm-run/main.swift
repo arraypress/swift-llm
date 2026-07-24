@@ -40,12 +40,16 @@ do {
     eprint("\r")
     print(String(format: "• ready in %.1fs", -t0.timeIntervalSinceNow))
 
-    let llm = LLM(engine)
     print("• prompt: \(prompt)")
+    var msgs: [LLMMessage] = [.user(prompt)]
+    if args.count > 3, let d = try? Data(contentsOf: URL(fileURLWithPath: args[3])) {
+        msgs = [.user(prompt, images: [d])]   // attach an image (VLM test)
+        print("• attached image: \(args[3]) (\(d.count) bytes)")
+    }
     print("• streaming:\n")
     let t1 = Date()
     var full = ""
-    for try await chunk in llm.stream(prompt) {
+    for try await chunk in engine.streamResponse(to: msgs, options: GenerationOptions(temperature: 0.7)) {
         full += chunk
         FileHandle.standardOutput.write(Data(chunk.utf8))   // live tokens
     }

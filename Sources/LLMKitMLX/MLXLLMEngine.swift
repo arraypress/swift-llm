@@ -10,9 +10,11 @@
 //
 
 import Foundation
+import CoreImage
 import LLMKit
 import MLXLMCommon
 import MLXLLM
+import MLXVLM
 import MLXHuggingFace
 import HuggingFace
 import Tokenizers
@@ -73,9 +75,19 @@ public final class MLXLLMEngine: LLMEngine, @unchecked Sendable {
             generateParameters: GenerateParameters(temperature: Float(options.temperature))
         )
         do {
-            return try await session.respond(to: prompt)
+            let imgs = Self.images(in: messages)
+            return imgs.isEmpty
+                ? try await session.respond(to: prompt)
+                : try await session.respond(to: prompt, images: imgs, videos: [], audios: [])
         } catch {
             throw LLMError.requestFailed(String(describing: error))
+        }
+    }
+
+    /// Decode any attached image data (JPEG/PNG) into MLX image inputs for a VLM.
+    private static func images(in messages: [LLMMessage]) -> [UserInput.Image] {
+        messages.flatMap(\.images).compactMap { data in
+            CIImage(data: data).map(UserInput.Image.ciImage)
         }
     }
 
@@ -97,6 +109,6 @@ public final class MLXLLMEngine: LLMEngine, @unchecked Sendable {
             instructions: systemText.isEmpty ? nil : systemText,
             generateParameters: GenerateParameters(temperature: Float(options.temperature))
         )
-        return session.streamResponse(to: prompt)
+        return session.streamResponse(to: prompt, images: Self.images(in: messages))
     }
 }
