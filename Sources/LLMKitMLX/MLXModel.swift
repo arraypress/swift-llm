@@ -106,6 +106,17 @@ public struct MLXModel: Sendable, Equatable {
         id: "llama-3.1-8b", repoID: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
         displayName: "Llama 3.1 8B", approximateSizeMB: 4_500, license: "Llama 3.1 Community", runsOnMobile: false)
 
+    /// GPT-OSS 20B (MXFP4) — OpenAI's open model; strong reasoning, Apache-2.0.
+    /// A different lineage to the Qwen/Llama/Mistral set. Mac-class (~12 GB).
+    public static let gptOSS20B = MLXModel(
+        id: "gpt-oss-20b", repoID: "mlx-community/gpt-oss-20b-MXFP4-Q8",
+        displayName: "GPT-OSS 20B", approximateSizeMB: 12_100, license: "Apache-2.0", runsOnMobile: false)
+
+    /// Gemma 3 27B (text, 4-bit QAT) — Google's flagship open family. Mac-class (~16 GB).
+    public static let gemma3_27B = MLXModel(
+        id: "gemma3-27b", repoID: "mlx-community/gemma-3-text-27b-it-4bit",
+        displayName: "Gemma 3 27B", approximateSizeMB: 16_000, license: "Gemma Terms", runsOnMobile: false)
+
     // MARK: - Uncensored (abliterated general-purpose models)
     // Refusal behaviour removed (and often re-tuned). Base licenses apply. Most
     // are Qwen3 reasoning models → emit a <think> block (use splitReasoning()).
@@ -147,6 +158,12 @@ public struct MLXModel: Sendable, Equatable {
         displayName: "Llama 3.1 8B (uncensored)", approximateSizeMB: 4_500, license: "Llama 3.1 Community",
         runsOnMobile: false, group: .uncensored)
 
+    /// Gemma 3 12B (abliterated) — uncensored Google Gemma; a distinct voice again.
+    public static let gemma3_12B_uncensored = MLXModel(
+        id: "gemma3-12b-uncensored", repoID: "mlx-community/gemma-3-12b-it-qat-abliterated-lm-4bit",
+        displayName: "Gemma 3 12B (uncensored)", approximateSizeMB: 7_400, license: "Gemma Terms",
+        runsOnMobile: false, group: .uncensored)
+
     // MARK: - Creative & NSFW (fiction / roleplay finetunes)
     // Tuned on stories & roleplay rather than just abliterated — best for prose.
     // Non-reasoning (no <think>).
@@ -175,10 +192,10 @@ public struct MLXModel: Sendable, Equatable {
     public static let all: [MLXModel] = [
         // General
         .qwen3_0_6B, .qwen3_1_7B, .qwen3_4B, .phi4Mini, .smolLM3_3B, .mistralSmall3,
-        .llama3_2_1B, .llama3_2_3B, .llama3_1_8B,
+        .llama3_2_1B, .llama3_2_3B, .llama3_1_8B, .gptOSS20B, .gemma3_27B,
         // Uncensored
         .josiefiedQwen3_4B, .josiefiedQwen3_8B, .huihuiQwen3_5_9B, .huihuiQwen3_5_27B,
-        .qwen3_6_35B_moe, .llama3_1_8B_uncensored,
+        .qwen3_6_35B_moe, .llama3_1_8B_uncensored, .gemma3_12B_uncensored,
         // Creative & NSFW
         .cydonia24B, .rocinante12B, .museWriter,
     ]
