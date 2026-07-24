@@ -156,6 +156,11 @@ public struct MLXModel: Sendable, Equatable {
         displayName: "Gemma 3 12B (uncensored)", maker: google, blurb: "Uncensored Gemma — distinct voice again.",
         approximateSizeMB: 7_400, license: "Gemma Terms", runsOnMobile: false, group: .uncensored)
 
+    public static let gptOSS20B_uncensored = MLXModel(
+        id: "gpt-oss-20b-uncensored", repoID: "nightmedia/OpenAI-gpt-oss-20B-INSTRUCT-Heretic-Uncensored-MXFP4-q8-hi-mlx",
+        displayName: "GPT-OSS 20B (uncensored)", maker: openai, blurb: "Uncensored OpenAI gpt-oss — strong reasoning.",
+        approximateSizeMB: 12_200, license: "Apache-2.0", runsOnMobile: false, group: .uncensored)
+
     // MARK: - Creative & NSFW (fiction / roleplay finetunes; non-reasoning)
 
     public static let cydonia24B = MLXModel(
@@ -178,7 +183,7 @@ public struct MLXModel: Sendable, Equatable {
         .qwen3_0_6B, .qwen3_1_7B, .qwen3_4B, .phi4Mini, .smolLM3_3B, .mistralSmall3,
         .llama3_2_1B, .llama3_2_3B, .llama3_1_8B, .gptOSS20B, .gemma3_27B,
         .josiefiedQwen3_4B, .josiefiedQwen3_8B, .huihuiQwen3_5_9B, .huihuiQwen3_5_27B,
-        .qwen3_6_35B_moe, .llama3_1_8B_uncensored, .gemma3_12B_uncensored,
+        .qwen3_6_35B_moe, .llama3_1_8B_uncensored, .gemma3_12B_uncensored, .gptOSS20B_uncensored,
         .cydonia24B, .rocinante12B, .museWriter,
     ]
 
