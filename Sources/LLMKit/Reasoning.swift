@@ -26,6 +26,10 @@ public extension String {
     /// was cut off mid-thought), everything after the open tag is treated as
     /// reasoning and the answer is whatever preceded it.
     func splitReasoning() -> ReasoningSplit {
+        // gpt-oss "harmony" channel format:
+        //   <|channel|>analysis<|message|>…reasoning…<|channel|>final<|message|>…answer…
+        if contains("<|channel|>") { return Self.splitHarmony(self) }
+
         for tag in ["think", "thinking", "reasoning"] {
             guard let open = range(of: "<\(tag)>", options: .caseInsensitive) else { continue }
             let afterOpen = self[open.upperBound...]
@@ -49,6 +53,25 @@ public extension String {
 
     /// The final answer with any `<think>`-style reasoning block removed.
     func strippingReasoning() -> String { splitReasoning().answer }
+
+    /// Parse gpt-oss "harmony" channels: the `analysis` channel is reasoning,
+    /// the `final` channel is the answer. Falls back to stripping all `<|…|>`
+    /// control tokens if there's no explicit `final` channel.
+    static func splitHarmony(_ s: String) -> ReasoningSplit {
+        func channel(_ name: String) -> String? {
+            guard let open = s.range(of: "<|channel|>\(name)<|message|>") else { return nil }
+            let rest = s[open.upperBound...]
+            var end = rest.endIndex
+            for stop in ["<|channel|>", "<|end|>", "<|return|>", "<|start|>"] {
+                if let e = rest.range(of: stop), e.lowerBound < end { end = e.lowerBound }
+            }
+            return rest[..<end].trimmed
+        }
+        let reasoning = channel("analysis")
+        let answer = channel("final")
+            ?? s.replacingOccurrences(of: #"<\|[^|]*\|>"#, with: " ", options: .regularExpression).trimmed
+        return ReasoningSplit(reasoning: (reasoning?.isEmpty == false) ? reasoning : nil, answer: answer)
+    }
 
     private var trimmed: String { trimmingCharacters(in: .whitespacesAndNewlines) }
 }
