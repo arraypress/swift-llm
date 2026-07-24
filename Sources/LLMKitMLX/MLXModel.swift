@@ -112,10 +112,31 @@ public struct MLXModel: Sendable, Equatable {
         id: "josiefied-qwen3-8b", repoID: "mlx-community/Josiefied-Qwen3-8B-abliterated-v1-4bit",
         displayName: "Qwen3 8B (uncensored)", approximateSizeMB: 4_500, license: "Apache-2.0", runsOnMobile: false)
 
+    /// Llama 3.1 8B abliterated (4-bit) — uncensored, a different (Llama) voice to Qwen.
+    public static let llama3_1_8B_uncensored = MLXModel(
+        id: "llama-3.1-8b-uncensored", repoID: "mlx-community/Meta-Llama-3.1-8B-Instruct-abliterated-4bit",
+        displayName: "Llama 3.1 8B (uncensored)", approximateSizeMB: 4_500, license: "Llama 3.1 Community", runsOnMobile: false)
+
+    /// Cydonia 24B (4-bit) — TheDrummer's creative-writing/roleplay finetune on a
+    /// Mistral-Small base, uncensored. The community's go-to for rich prose/stories;
+    /// non-reasoning (no <think>). ~13 GB → needs ~24 GB unified memory.
+    public static let cydonia24B = MLXModel(
+        id: "cydonia-24b", repoID: "mlx-community/Cydonia-24B-v3-4bit",
+        displayName: "Cydonia 24B (uncensored writer)", approximateSizeMB: 13_000,
+        license: "Apache-2.0 (Mistral base)", runsOnMobile: false)
+
+    /// Dirty Muse Writer (2-bit) — a small model fine-tuned specifically for adult
+    /// erotica. On-topic out of the box but rough (2-bit); prefer Cydonia for quality.
+    public static let museWriter = MLXModel(
+        id: "muse-writer", repoID: "Jurisprudence/Dirty-Muse-Writer-v01-Uncensored-Erotica-NSFW-mlx-2Bit",
+        displayName: "Muse Writer 3B (erotica, 2-bit)", approximateSizeMB: 2_900,
+        license: "check repo", runsOnMobile: true)
+
     /// Every curated model.
     public static let all: [MLXModel] = [
         .qwen3_0_6B, .qwen3_1_7B, .qwen3_4B, .phi4Mini, .smolLM3_3B, .mistralSmall3,
         .llama3_2_1B, .llama3_2_3B, .llama3_1_8B,
         .josiefiedQwen3_4B, .josiefiedQwen3_8B,
+        .llama3_1_8B_uncensored, .cydonia24B, .museWriter,
     ]
 }
