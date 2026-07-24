@@ -16,6 +16,7 @@ import MLXLLM
 import MLXHuggingFace
 import HuggingFace
 import Tokenizers
+import Hub
 
 /// Local text generation via an MLX model (Qwen3, Phi-4, SmolLM3, …).
 public final class MLXLLMEngine: LLMEngine, @unchecked Sendable {
@@ -33,15 +34,20 @@ public final class MLXLLMEngine: LLMEngine, @unchecked Sendable {
     public var isReady: Bool { container != nil }
 
     /// Download (if needed) and load the model, reporting `0...1` progress.
+    ///
+    /// The weights are fetched with swift-transformers' `HubApi` rather than
+    /// mlx-swift-lm's built-in downloader — the latter stalls on large single
+    /// files (grabs the small config/tokenizer files, then never starts the
+    /// multi-GB `model.safetensors`). `HubApi` streams large files reliably and
+    /// reports real byte-level progress; we then load straight from the cached
+    /// directory it returns.
     public func prepare(onProgress: (@Sendable (Double) -> Void)? = nil) async throws {
         do {
-            container = try await loadModelContainer(
-                from: #hubDownloader(),
-                using: #huggingFaceTokenizerLoader(),
-                configuration: ModelConfiguration(id: model.repoID)
-            ) { progress in
+            let directory = try await HubApi.shared.snapshot(from: model.repoID) { progress in
                 onProgress?(progress.fractionCompleted)
             }
+            container = try await loadModelContainer(
+                from: directory, using: #huggingFaceTokenizerLoader())
         } catch {
             throw LLMError.unavailable(String(describing: error))
         }
