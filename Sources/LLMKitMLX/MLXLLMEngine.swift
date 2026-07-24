@@ -72,4 +72,25 @@ public final class MLXLLMEngine: LLMEngine, @unchecked Sendable {
             throw LLMError.requestFailed(String(describing: error))
         }
     }
+
+    /// Real incremental streaming — yields token chunks as the model generates.
+    public func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error> {
+        guard let container else {
+            return AsyncThrowingStream { $0.finish(throwing: LLMError.notReady) }
+        }
+        let systemText = messages.filter { $0.role == .system }.map(\.text).joined(separator: "\n")
+        let prompt = messages
+            .filter { $0.role != .system }
+            .map { $0.role == .assistant ? "Assistant: \($0.text)" : $0.text }
+            .joined(separator: "\n")
+
+        // The ChatSession retains itself in the stream's internal task, so it
+        // stays alive for the duration even though this local goes out of scope.
+        let session = ChatSession(
+            container,
+            instructions: systemText.isEmpty ? nil : systemText,
+            generateParameters: GenerateParameters(temperature: Float(options.temperature))
+        )
+        return session.streamResponse(to: prompt)
+    }
 }

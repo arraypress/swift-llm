@@ -43,6 +43,17 @@ public struct LLM: Sendable {
         try await engine.respond(to: messages, options: options)
     }
 
+    /// Stream a reply to a single prompt as text chunks (live tokens on the
+    /// MLX engine; a single final chunk on engines that don't stream).
+    public func stream(_ prompt: String, options: GenerationOptions = GenerationOptions()) -> AsyncThrowingStream<String, Error> {
+        engine.streamResponse(to: [.user(prompt)], options: options)
+    }
+
+    /// Stream a reply to a full conversation as text chunks.
+    public func stream(_ messages: [LLMMessage], options: GenerationOptions = GenerationOptions()) -> AsyncThrowingStream<String, Error> {
+        engine.streamResponse(to: messages, options: options)
+    }
+
     /// Structured output: parse the reply into a `Decodable`.
     public func respond<T: Decodable>(
         to messages: [LLMMessage],

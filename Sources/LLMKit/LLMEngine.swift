@@ -20,6 +20,10 @@ public protocol LLMEngine: Sendable {
 
     /// Respond to a conversation and return the assistant's text.
     func respond(to messages: [LLMMessage], options: GenerationOptions) async throws -> String
+
+    /// Stream the assistant's reply incrementally as text chunks. Engines that
+    /// can't stream yield the whole reply as a single chunk (see the default).
+    func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error>
 }
 
 public extension LLMEngine {
@@ -45,5 +49,21 @@ public extension LLMEngine {
     ) async throws -> T {
         let text = try await respond(to: messages, options: options)
         return try JSONExtractor.decode(type, from: text)
+    }
+
+    /// Default streaming: run `respond` and deliver the whole reply as one
+    /// chunk. Engines with incremental generation (e.g. `MLXLLMEngine`) override.
+    func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    continuation.yield(try await respond(to: messages, options: options))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
     }
 }

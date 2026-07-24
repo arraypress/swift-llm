@@ -42,10 +42,19 @@ do {
 
     let llm = LLM(engine)
     print("• prompt: \(prompt)")
+    print("• streaming:\n")
     let t1 = Date()
-    let reply = try await llm.generate(prompt)
-    print(String(format: "• generated in %.1fs:\n", -t1.timeIntervalSinceNow))
-    print(reply)
+    var full = ""
+    for try await chunk in llm.stream(prompt) {
+        full += chunk
+        FileHandle.standardOutput.write(Data(chunk.utf8))   // live tokens
+    }
+    let split = full.splitReasoning()
+    print(String(format: "\n\n• generated in %.1fs", -t1.timeIntervalSinceNow))
+    if let reasoning = split.reasoning {
+        print("• (\(reasoning.count) chars of <think> reasoning split out)")
+        print("• answer:\n\(split.answer)")
+    }
 } catch {
     eprint("FAILED: \(error)\n")
     exit(1)
