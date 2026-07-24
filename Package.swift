@@ -35,6 +35,12 @@ let package = Package(
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ]
         ),
+        // On-device smoke test: download a small MLX model and run one
+        // generation, proving the LLMKitMLX path end-to-end. See `llm-run`.
+        .executableTarget(
+            name: "llm-run",
+            dependencies: ["LLMKit", "LLMKitMLX"]
+        ),
         .testTarget(
             name: "LLMKitTests",
             dependencies: ["LLMKit"]

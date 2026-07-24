@@ -10,7 +10,7 @@ Text · vision · structured output, behind a single `LLMEngine`.
 |---|---|---|
 | **`FoundationEngine`** | on-device, free | Apple's system model (FoundationModels) — no download, private |
 | **`RemoteEngine`** | cloud | **any OpenAI-compatible endpoint** — OpenAI, Claude (via proxy), Cloudflare AI Gateway, Groq, OpenRouter, or a local Ollama / LM Studio server |
-| **`MLXLLMEngine`** *(next)* | on-device, downloaded | Qwen3 / Phi-4 / SmolLM3 / Gemma via MLX |
+| **`MLXLLMEngine`** | on-device, downloaded | Qwen3 / Phi-4-mini / SmolLM3 / Mistral / Llama via MLX — downloaded & cached |
 
 ## Usage
 
@@ -27,6 +27,16 @@ Works with any provider by swapping the endpoint — `.groq`, `.openRouter`, `.l
 ```swift
 let llm = LLM(FoundationEngine(instructions: "You extract structured data."))
 let reply = try await llm.generate("…")   // free, private, no download
+```
+
+**On-device (local MLX model):**
+```swift
+import LLMKit
+import LLMKitMLX
+
+let engine = MLXLLMEngine(.qwen3_0_6B)                     // 4-bit, ~450 MB, Apache-2.0
+try await engine.prepare { print("downloading \(Int($0 * 100))%") }   // first run downloads + caches
+let reply = try await LLM(engine).generate("Explain a haiku in one line.")
 ```
 
 **Vision** (RemoteEngine today; FoundationModels on newer OS):
@@ -49,7 +59,7 @@ Your apps already span all three tiers — Apple FoundationModels (ReceiptBunny,
 
 ## Status
 - ✅ **Core + `RemoteEngine` + `FoundationEngine` — built and unit-tested (19 tests).** RemoteEngine's request/response shaping and the JSON extractor are covered by pure tests; the cloud path is standard URLSession; the Apple path compiles against the real FoundationModels SDK (its *live* generation needs Apple Intelligence enabled).
-- 🔜 **`MLXLLMEngine`** — local downloaded models via `mlx-swift-lm` (Qwen3 / Phi-4 / SmolLM3 / Gemma), download-managed. Next phase.
+- ✅ **`MLXLLMEngine` — implemented and verified on device.** Local downloaded models via `mlx-swift-lm` (Qwen3 · Phi-4-mini · SmolLM3 · Mistral Small 3 · Llama 3.x). End-to-end smoke test (`llm-run`) confirmed: Qwen3-0.6B downloaded + loaded in ~34s, generated in ~11s on the Apple Silicon GPU. See [Verifying the MLX engine](#verifying-the-mlx-engine).
 - 🔜 **Image input for `FoundationEngine`** — text-only on this SDK; maps to `.image()` on the newer OS.
 
 ## Requirements
@@ -58,8 +68,18 @@ Your apps already span all three tiers — Apple FoundationModels (ReceiptBunny,
 
 ## Testing
 ```bash
-swift test
+swift test          # 19 offline unit tests (core: RemoteEngine shaping + JSONExtractor)
 ```
+
+## Verifying the MLX engine
+`swift test` can't exercise `MLXLLMEngine` — mlx-swift needs a Metal library that only ships in Xcode app builds. The `llm-run` smoke test proves it on device: it downloads a small model and runs one generation.
+```bash
+swift build --product llm-run
+# colocate a Metal library next to the binary (see CLAUDE.md for a source):
+cp <some>/mlx.metallib .build/arm64-apple-macosx/debug/mlx.metallib
+.build/arm64-apple-macosx/debug/llm-run qwen3-0.6b "In one sentence, what is a haiku?"
+```
+Xcode app builds bundle the metallib automatically.
 
 ## License
 MIT — see LICENSE.
