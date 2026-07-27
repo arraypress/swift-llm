@@ -2,6 +2,9 @@
 
 One Swift API for LLMs across tiers — Apple on-device, local MLX (text **and** vision), or any OpenAI-compatible cloud — behind a single `LLMEngine` protocol. macOS/iOS. Same shape as swift-stable-audio / swift-tts. Companion chat app: `../../swift-llm-tester` (LLMChat).
 
+## Why this exists
+To unify the AI code already scattered across the apps: **ReceiptBunny** and **RenameMaid** use Apple FoundationModels with `@Generable`; **SupplementScan** has its own `AIService` hitting Cloudflare AI Gateway (OpenAI-compatible vision + JSON). Each app should pick a tier, gain the tiers it lacked, and get a fallback chain — rather than three private implementations.
+
 ## Build & test
 ```bash
 swift build                      # all targets (LLMKitMLX pulls mlx-swift-lm — slow first build)
@@ -11,7 +14,7 @@ swift build --product llm-run    # on-device MLX smoke test (use --product, NOT 
 
 ## Module map
 - `LLMKit/` (core, dependency-light) — `LLMEngine` protocol, `LLM` facade, `LLMMessage` (carries `images: [Data]`), `GenerationOptions`, `LLMError`, `JSONExtractor` (first balanced JSON object → structured output), **`Reasoning.swift`** (`String.splitReasoning()` → `(reasoning?, answer)` + `strippingReasoning()`; handles `<think>/<thinking>/<reasoning>`), plus:
-  - `FoundationEngine` — Apple FoundationModels (on-device; live gen needs Apple Intelligence).
+  - `FoundationEngine` — Apple FoundationModels (on-device; live gen needs Apple Intelligence). **Text only, deliberately:** this machine's SDK is macOS 26.5 (WWDC25 FoundationModels), where the API has no image input. `.image()` arrived at WWDC26 and needs the macOS 27 SDK — wire it then, don't try to work around it now.
   - `RemoteEngine` — any OpenAI-compatible endpoint.
 - `LLMKitMLX/` (opt-in) — `MLXLLMEngine` + `MLXModel` registry. Links MLXLLM **and MLXVLM**.
 
@@ -21,7 +24,11 @@ swift build --product llm-run    # on-device MLX smoke test (use --product, NOT 
 - **Download:** `prepare()` fetches with swift-transformers **`HubApi.shared.snapshot`** (reliable + real progress), then loads from the returned dir. ⚠️ **HubApi still STALLS on heavily-SHARDED repos** (e.g. gpt-oss = 3×5GB); pre-fetch those with `.venv/bin/python -c "from huggingface_hub import snapshot_download; snapshot_download('<repo>', max_workers=8)"`. Single-file models are fine in-app.
 
 ## `MLXModel` registry
-Each model has `group` (General / Vision / Uncensored / Creative & NSFW), `maker`, `blurb`, `supportsVision`, size/license. ~24 models. **Arch gate:** only add models whose `model_type` is registered in the pinned mlx-swift-lm — check `.build/checkouts/mlx-swift-lm/Libraries/MLXLLM/Models/` and `…/MLXVLM/Models/` (one file per arch). Supported incl. qwen3/qwen3_5(_moe)/llama/mistral/phi/gemma2/gemma3/gemma4(text)/gpt_oss; VLMs qwen3_vl/qwen2_5_vl/gemma3/pixtral/smolvlm2. **Verify a candidate is TEXT** (config has no `vision_config`) unless it's a VLM group entry.
+Each model has `group` (General / Vision / Uncensored / Creative & NSFW), `maker`, `blurb`, `supportsVision`, size/license. ~24 models — treat that as a **deliberate stopping point**; more entries are diminishing returns, not coverage.
+
+Notes that save a debugging round: **Qwen3 is a reasoning model** and returns its `<think>…</think>` block verbatim — strip it with `splitReasoning()`, or use Phi-4-mini when you want clean chat output. **Gemma 4 vision** (`Gemma4ForConditionalGeneration`) is *not* supported and must be omitted; Gemma 4 **text** is fine. Target machine is an **M3 Max / 36 GB**, which runs everything here up to ~30B including the 35B-A3B MoE.
+
+**Arch gate:** only add models whose `model_type` is registered in the pinned mlx-swift-lm — check `.build/checkouts/mlx-swift-lm/Libraries/MLXLLM/Models/` and `…/MLXVLM/Models/` (one file per arch). Supported incl. qwen3/qwen3_5(_moe)/llama/mistral/phi/gemma2/gemma3/gemma4(text)/gpt_oss; VLMs qwen3_vl/qwen2_5_vl/gemma3/pixtral/smolvlm2. **Verify a candidate is TEXT** (config has no `vision_config`) unless it's a VLM group entry.
 
 ## `llm-run` harness
 ```bash
