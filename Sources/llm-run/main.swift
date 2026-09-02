@@ -13,6 +13,33 @@
 //
 
 import Foundation
+
+/// Streams a token to stdout without dying when the reader has gone.
+///
+/// `llm-run … | head` closes stdout mid-stream, which is how a pipeline says
+/// "enough". By default SIGPIPE kills the process at 141 and `FileHandle.write`
+/// raises an uncatchable `NSFileHandleOperationException`. Ignoring the signal
+/// makes the write return `EPIPE`, and a reader that has stopped listening is
+/// a reason to stop generating rather than to crash.
+///
+/// A copy of what CLIKit's `Terminal` does; this package does not depend on
+/// CLIKit and a streaming test harness is not worth adding one for.
+private let ignoreBrokenPipe: Void = { signal(SIGPIPE, SIG_IGN) }()
+
+private func writeToken(_ text: String) {
+    _ = ignoreBrokenPipe
+    var data = Array(text.utf8)
+    var offset = 0
+    while offset < data.count {
+        let written = data.withUnsafeBytes {
+            write(FileHandle.standardOutput.fileDescriptor, $0.baseAddress! + offset, data.count - offset)
+        }
+        if written > 0 { offset += written; continue }
+        if errno == EINTR { continue }
+        if errno == EPIPE { exit(0) }
+        return
+    }
+}
 import LLMKit
 import LLMKitMLX
 
@@ -51,7 +78,7 @@ do {
     var full = ""
     for try await chunk in engine.streamResponse(to: msgs, options: GenerationOptions(temperature: 0.7)) {
         full += chunk
-        FileHandle.standardOutput.write(Data(chunk.utf8))   // live tokens
+        writeToken(chunk)   // live tokens
     }
     let split = full.splitReasoning()
     print(String(format: "\n\n• generated in %.1fs", -t1.timeIntervalSinceNow))
