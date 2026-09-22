@@ -49,9 +49,9 @@ final class StreamingTests: XCTestCase {
     }
 
     func testRequestBody_streamFlagOnlyWhenAsked() {
-        let plain = RemoteEngine.requestBody(model: "m", messages: [.user("x")], options: GenerationOptions())
+        let plain = RemoteEngine.requestBody(model: "m", messages: [.user("x")], options: GenerationOptions(), endpoint: .openRouter)
         XCTAssertNil(plain["stream"])
-        let streaming = RemoteEngine.requestBody(model: "m", messages: [.user("x")], options: GenerationOptions(), stream: true)
+        let streaming = RemoteEngine.requestBody(model: "m", messages: [.user("x")], options: GenerationOptions(), endpoint: .openRouter, stream: true)
         XCTAssertEqual(streaming["stream"] as? Bool, true)
     }
 

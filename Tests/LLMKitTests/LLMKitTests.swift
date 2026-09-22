@@ -51,7 +51,8 @@ final class LLMKitTests: XCTestCase {
         let body = RemoteEngine.requestBody(
             model: "gpt-4o",
             messages: [.system("be brief"), .user("hi")],
-            options: GenerationOptions(temperature: 0.3, maxTokens: 100)
+            options: GenerationOptions(temperature: 0.3, maxTokens: 100),
+            endpoint: .openRouter
         )
         XCTAssertEqual(body["model"] as? String, "gpt-4o")
         XCTAssertEqual(body["temperature"] as? Double, 0.3)
@@ -67,7 +68,8 @@ final class LLMKitTests: XCTestCase {
         let body = RemoteEngine.requestBody(
             model: "gpt-4o",
             messages: [.user("what is this?", images: [image])],
-            options: GenerationOptions()
+            options: GenerationOptions(),
+            endpoint: .openRouter
         )
         let messages = body["messages"] as? [[String: Any]]
         let content = messages?.first?["content"] as? [[String: Any]]

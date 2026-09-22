@@ -25,7 +25,8 @@ final class AttachmentTests: XCTestCase {
         let body = RemoteEngine.requestBody(
             model: "m",
             messages: [.user("q", attachments: [.imageURL(url), .text("body", title: "Doc")])],
-            options: GenerationOptions()
+            options: GenerationOptions(),
+            endpoint: .openRouter
         )
         let content = (body["messages"] as! [[String: Any]])[0]["content"] as! [[String: Any]]
         XCTAssertEqual(content.count, 3)
