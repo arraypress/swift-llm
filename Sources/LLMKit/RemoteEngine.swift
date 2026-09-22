@@ -49,7 +49,7 @@ public struct RemoteEngine: LLMEngine, ModelListing {
             endpoint.url,
             method: "POST",
             headers: headers,
-            body: Self.requestBody(model: model, messages: messages, options: options, maxTokensField: endpoint.maxTokensField)
+            body: Self.requestBody(model: model, messages: messages, options: options, endpoint: endpoint)
         )
         let data = try await HTTPTransport.data(for: request, session: urlSession)
         return try Self.parseContent(data)
@@ -67,7 +67,7 @@ public struct RemoteEngine: LLMEngine, ModelListing {
                         method: "POST",
                         headers: headers,
                         body: Self.requestBody(model: model, messages: messages, options: options,
-                                               maxTokensField: endpoint.maxTokensField, stream: true)
+                                               endpoint: endpoint, stream: true)
                     )
                     let lines = try await HTTPTransport.lines(for: request, session: urlSession)
                     for try await line in lines {
@@ -126,7 +126,7 @@ public struct RemoteEngine: LLMEngine, ModelListing {
         model: String,
         messages: [LLMMessage],
         options: GenerationOptions,
-        maxTokensField: String = "max_tokens",
+        endpoint: RemoteEndpoint,
         stream: Bool = false
     ) -> [String: Any] {
         let encoded: [[String: Any]] = messages.map { message in
@@ -154,10 +154,12 @@ public struct RemoteEngine: LLMEngine, ModelListing {
         var body: [String: Any] = [
             "model": model,
             "messages": encoded,
-            "temperature": options.temperature,
         ]
-        if let maxTokens = options.maxTokens { body[maxTokensField] = maxTokens }
-        if let topP = options.topP { body["top_p"] = topP }
+        if endpoint.acceptsSamplingParameters(model: model) {
+            body["temperature"] = options.temperature
+            if let topP = options.topP { body["top_p"] = topP }
+        }
+        if let maxTokens = options.maxTokens { body[endpoint.maxTokensField] = maxTokens }
         if stream { body["stream"] = true }
         return body
     }

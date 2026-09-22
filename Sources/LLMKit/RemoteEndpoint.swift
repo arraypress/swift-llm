@@ -34,19 +34,37 @@ public struct RemoteEndpoint: Sendable {
     /// Where `GET …/models` lives, when it isn't beside the chat URL.
     public var modelsURL: URL?
 
+    /// Model-id prefixes whose sampling is fixed: the request must not carry
+    /// `temperature` or `top_p`.
+    ///
+    /// OpenAI's reasoning models — every `gpt-5*`, `gpt-6*` and o-series id —
+    /// answer 400 to any temperature but the default, so a value that a
+    /// `gpt-4o` call took happily now fails the whole request. Matching by
+    /// prefix keeps `gpt-5.6-terra` and `gpt-6-astra` covered without a list
+    /// that ages.
+    public var fixedSamplingPrefixes: [String]
+
     /// Create an endpoint.
     public init(
         url: URL,
         authHeaderField: String = "Authorization",
         authScheme: String = "Bearer",
         maxTokensField: String = "max_tokens",
-        modelsURL: URL? = nil
+        modelsURL: URL? = nil,
+        fixedSamplingPrefixes: [String] = []
     ) {
         self.url = url
         self.authHeaderField = authHeaderField
         self.authScheme = authScheme
         self.maxTokensField = maxTokensField
         self.modelsURL = modelsURL
+        self.fixedSamplingPrefixes = fixedSamplingPrefixes
+    }
+
+    /// Whether `model` takes `temperature` and `top_p` at all.
+    public func acceptsSamplingParameters(model: String) -> Bool {
+        let id = model.lowercased()
+        return !fixedSamplingPrefixes.contains { id.hasPrefix($0) }
     }
 
     /// The models URL: `modelsURL` if set, else the chat URL with its
@@ -70,7 +88,8 @@ public struct RemoteEndpoint: Sendable {
     /// OpenAI (`api.openai.com`).
     public static let openAI = RemoteEndpoint(
         url: URL(string: "https://api.openai.com/v1/chat/completions")!,
-        maxTokensField: "max_completion_tokens"
+        maxTokensField: "max_completion_tokens",
+        fixedSamplingPrefixes: ["gpt-5", "gpt-6", "o1", "o3", "o4", "o5"]
     )
 
     /// Groq.

@@ -44,7 +44,7 @@ final class ModelListingTests: XCTestCase {
             model: "gpt-5",
             messages: [.user("x")],
             options: GenerationOptions(maxTokens: 10),
-            maxTokensField: RemoteEndpoint.openAI.maxTokensField
+            endpoint: .openAI
         )
         XCTAssertEqual(body["max_completion_tokens"] as? Int, 10)
         XCTAssertNil(body["max_tokens"])
