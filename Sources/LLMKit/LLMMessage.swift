@@ -4,8 +4,9 @@
 //
 //  A chat message — the common currency across every engine (Apple, MLX, cloud).
 //  Images are carried as encoded data (JPEG/PNG) so the core stays cross-platform;
-//  each engine renders them into its own format (Apple `.image()`, OpenAI
-//  `image_url`, MLX pixel input).
+//  richer attachments (URLs, PDFs, documents, uploaded files) ride alongside as
+//  `LLMAttachment`s. Each engine renders them into its own format and refuses
+//  the kinds it cannot carry.
 //
 
 import Foundation
@@ -27,13 +28,24 @@ public struct LLMMessage: Sendable, Equatable {
     public var text: String
 
     /// Optional images (encoded JPEG/PNG data) for vision-capable models.
+    /// Equivalent to `LLMAttachment.image`; kept for the engines and callers
+    /// that only know images.
     public var images: [Data]
 
+    /// Other attachments: images by URL, PDFs, text documents, uploaded files.
+    public var attachments: [LLMAttachment]
+
     /// Create a message.
-    public init(role: Role, text: String, images: [Data] = []) {
+    public init(role: Role, text: String, images: [Data] = [], attachments: [LLMAttachment] = []) {
         self.role = role
         self.text = text
         self.images = images
+        self.attachments = attachments
+    }
+
+    /// Every attachment, `images` first as `.image`, then `attachments`.
+    public var allAttachments: [LLMAttachment] {
+        images.map(LLMAttachment.image) + attachments
     }
 
     /// A system / instructions message.
@@ -41,9 +53,9 @@ public struct LLMMessage: Sendable, Equatable {
         LLMMessage(role: .system, text: text)
     }
 
-    /// A user message, optionally with images.
-    public static func user(_ text: String, images: [Data] = []) -> LLMMessage {
-        LLMMessage(role: .user, text: text, images: images)
+    /// A user message, optionally with images and other attachments.
+    public static func user(_ text: String, images: [Data] = [], attachments: [LLMAttachment] = []) -> LLMMessage {
+        LLMMessage(role: .user, text: text, images: images, attachments: attachments)
     }
 
     /// An assistant message.

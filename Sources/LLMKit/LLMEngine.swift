@@ -3,8 +3,9 @@
 //  LLMKit
 //
 //  The protocol every backend implements — Apple FoundationModels, a local MLX
-//  model, or any OpenAI-compatible cloud endpoint. Callers program against this,
-//  so the tier is a swappable choice, not a rewrite.
+//  model, Anthropic's Messages API, or any OpenAI-compatible cloud endpoint.
+//  Callers program against this, so the tier is a swappable choice, not a
+//  rewrite.
 //
 
 import Foundation
@@ -21,8 +22,9 @@ public protocol LLMEngine: Sendable {
     /// Respond to a conversation and return the assistant's text.
     func respond(to messages: [LLMMessage], options: GenerationOptions) async throws -> String
 
-    /// Stream the assistant's reply incrementally as text chunks. Engines that
-    /// can't stream yield the whole reply as a single chunk (see the default).
+    /// Stream the assistant's reply incrementally as text chunks. Every bundled
+    /// engine streams live tokens; an engine that can't falls back to the
+    /// default, which yields the whole reply as a single chunk.
     func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error>
 }
 
@@ -52,7 +54,9 @@ public extension LLMEngine {
     }
 
     /// Default streaming: run `respond` and deliver the whole reply as one
-    /// chunk. Engines with incremental generation (e.g. `MLXLLMEngine`) override.
+    /// chunk. The bundled engines all override this with real token streams
+    /// (SSE for the cloud engines, snapshots for Apple, tokens for MLX); it
+    /// remains for third-party engines that have no incremental path.
     func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {

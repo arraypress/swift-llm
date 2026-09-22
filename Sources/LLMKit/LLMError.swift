@@ -26,6 +26,11 @@ public enum LLMError: Error, LocalizedError, Equatable, Sendable {
     /// Structured output couldn't be decoded from the response.
     case decodingFailed(String)
 
+    /// The provider's safety system declined the request (Anthropic's
+    /// `refusal` stop reason). The request itself succeeded, so this is
+    /// separate from `requestFailed`: retrying won't help, rewording might.
+    case refused(String)
+
     public var errorDescription: String? {
         switch self {
         case .notReady:
@@ -40,6 +45,8 @@ public enum LLMError: Error, LocalizedError, Equatable, Sendable {
             return "The model returned an empty response."
         case .decodingFailed(let detail):
             return "Couldn't decode structured output: \(detail)"
+        case .refused(let detail):
+            return "The model declined this request: \(detail)"
         }
     }
 }

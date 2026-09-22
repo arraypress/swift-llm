@@ -2,18 +2,20 @@
 //  RemoteEngine.swift
 //  LLMKit
 //
-//  An LLM engine backed by any OpenAI-compatible cloud endpoint. Supports text
-//  and vision (via the `image_url` content block), and works with OpenAI, Claude
-//  (through a compatible proxy), Cloudflare AI Gateway, Groq/OpenRouter, and
-//  local servers. Pure URLSession — no external dependencies.
+//  An LLM engine backed by any OpenAI-compatible cloud endpoint. Supports text,
+//  vision (via the `image_url` content block), token streaming (`stream: true`
+//  server-sent events) and model listing (`GET /models`), and works with
+//  OpenAI, Cloudflare AI Gateway, Groq, OpenRouter and local servers. Pure
+//  URLSession — no external dependencies. Anthropic has its own engine
+//  (`AnthropicEngine`) because its API is not OpenAI-shaped.
 //
 
 import Foundation
 
 /// Text (and vision) generation via an OpenAI-compatible endpoint.
-public struct RemoteEngine: LLMEngine {
+public struct RemoteEngine: LLMEngine, ModelListing {
 
-    /// The model id to request (e.g. `"gpt-4o"`, `"claude-3-5-sonnet"`).
+    /// The model id to request (e.g. `"gpt-4o"`, `"llama3.2"`).
     public let model: String
 
     /// The endpoint + auth style.
@@ -42,43 +44,108 @@ public struct RemoteEngine: LLMEngine {
     }
 
     public func respond(to messages: [LLMMessage], options: GenerationOptions) async throws -> String {
-        var request = URLRequest(url: endpoint.url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !apiKey.isEmpty {
-            let value = endpoint.authScheme.isEmpty ? apiKey : "\(endpoint.authScheme) \(apiKey)"
-            request.setValue(value, forHTTPHeaderField: endpoint.authHeaderField)
-        }
-        request.timeoutInterval = 60
-        request.httpBody = try JSONSerialization.data(withJSONObject: Self.requestBody(model: model, messages: messages, options: options))
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await urlSession.data(for: request)
-        } catch {
-            throw LLMError.requestFailed(error.localizedDescription)
-        }
-
-        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw LLMError.requestFailed("HTTP \(http.statusCode): \(body.prefix(300))")
-        }
-
+        try Self.checkAttachments(in: messages)
+        let request = try HTTPTransport.request(
+            endpoint.url,
+            method: "POST",
+            headers: headers,
+            body: Self.requestBody(model: model, messages: messages, options: options, maxTokensField: endpoint.maxTokensField)
+        )
+        let data = try await HTTPTransport.data(for: request, session: urlSession)
         return try Self.parseContent(data)
+    }
+
+    /// Live tokens: the same request with `stream: true`, read as server-sent
+    /// events until the `[DONE]` sentinel or the connection closes.
+    public func streamResponse(to messages: [LLMMessage], options: GenerationOptions) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try Self.checkAttachments(in: messages)
+                    let request = try HTTPTransport.request(
+                        endpoint.url,
+                        method: "POST",
+                        headers: headers,
+                        body: Self.requestBody(model: model, messages: messages, options: options,
+                                               maxTokensField: endpoint.maxTokensField, stream: true)
+                    )
+                    let lines = try await HTTPTransport.lines(for: request, session: urlSession)
+                    for try await line in lines {
+                        if ServerSentEvents.dataPayload(of: line) == ServerSentEvents.done { break }
+                        if let delta = try Self.streamDelta(line), !delta.isEmpty {
+                            continuation.yield(delta)
+                        }
+                    }
+                    continuation.finish()
+                } catch let error as LLMError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: LLMError.requestFailed(error.localizedDescription))
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    public func availableModels() async throws -> [LLMModelInfo] {
+        let request = try HTTPTransport.request(endpoint.resolvedModelsURL, method: "GET", headers: headers)
+        let data = try await HTTPTransport.data(for: request, session: urlSession)
+        return try Self.parseModels(data).newestFirst()
+    }
+
+    /// The auth header, when the endpoint wants one.
+    private var headers: [String: String] {
+        guard !apiKey.isEmpty else { return [:] }
+        let value = endpoint.authScheme.isEmpty ? apiKey : "\(endpoint.authScheme) \(apiKey)"
+        return [endpoint.authHeaderField: value]
     }
 
     // MARK: - Pure helpers (testable without the network)
 
-    /// Build the OpenAI-compatible request body. Messages with images become the
-    /// array-content form with `image_url` blocks (base64 data URLs).
-    static func requestBody(model: String, messages: [LLMMessage], options: GenerationOptions) -> [String: Any] {
+    /// The first attachment this endpoint has no content part for. The
+    /// OpenAI chat format carries images (inline or by URL) and text; PDFs and
+    /// uploaded files are Anthropic-only, and dropping them silently would
+    /// answer a question the model never saw.
+    static func checkAttachments(in messages: [LLMMessage]) throws {
+        for attachment in messages.flatMap(\.allAttachments) {
+            switch attachment {
+            case .image, .imageURL, .text:
+                continue
+            case .pdf, .pdfURL, .file:
+                throw LLMError.unavailable("this endpoint accepts images and text documents only; PDFs and uploaded files need AnthropicEngine")
+            }
+        }
+    }
+
+    /// Build the OpenAI-compatible request body. Messages with attachments
+    /// become the array-content form: `image_url` parts (base64 data URLs or
+    /// plain URLs) and text parts, with text documents inlined under their
+    /// title. Unsupported attachment kinds are left out here; `checkAttachments`
+    /// rejects them before a request is made.
+    static func requestBody(
+        model: String,
+        messages: [LLMMessage],
+        options: GenerationOptions,
+        maxTokensField: String = "max_tokens",
+        stream: Bool = false
+    ) -> [String: Any] {
         let encoded: [[String: Any]] = messages.map { message in
-            if message.images.isEmpty {
+            let attachments = message.allAttachments
+            if attachments.isEmpty {
                 return ["role": message.role.rawValue, "content": message.text]
             }
-            var content: [[String: Any]] = message.images.map { image in
-                ["type": "image_url", "image_url": ["url": "data:image/jpeg;base64,\(image.base64EncodedString())"]]
+            var content: [[String: Any]] = attachments.compactMap { attachment in
+                switch attachment {
+                case .image(let data):
+                    let url = "data:\(ImageData.mediaType(of: data));base64,\(data.base64EncodedString())"
+                    return ["type": "image_url", "image_url": ["url": url]]
+                case .imageURL(let url):
+                    return ["type": "image_url", "image_url": ["url": url.absoluteString]]
+                case .text(let text, let title):
+                    return ["type": "text", "text": inlineDocument(text, title: title)]
+                case .pdf, .pdfURL, .file:
+                    return nil
+                }
             }
             content.append(["type": "text", "text": message.text])
             return ["role": message.role.rawValue, "content": content]
@@ -89,9 +156,16 @@ public struct RemoteEngine: LLMEngine {
             "messages": encoded,
             "temperature": options.temperature,
         ]
-        if let maxTokens = options.maxTokens { body["max_tokens"] = maxTokens }
+        if let maxTokens = options.maxTokens { body[maxTokensField] = maxTokens }
         if let topP = options.topP { body["top_p"] = topP }
+        if stream { body["stream"] = true }
         return body
+    }
+
+    /// A text document as prompt text, fenced under its title so the model
+    /// can tell it from the question.
+    static func inlineDocument(_ text: String, title: String?) -> String {
+        "<document\(title.map { " title=\"\($0)\"" } ?? "")>\n\(text)\n</document>"
     }
 
     /// Extract `choices[0].message.content` from an OpenAI-compatible response.
@@ -106,5 +180,35 @@ public struct RemoteEngine: LLMEngine {
             throw LLMError.emptyResponse
         }
         return content
+    }
+
+    /// The text carried by one streamed line: `choices[0].delta.content`, or
+    /// `nil` for framing lines, the `[DONE]` sentinel, and deltas with no text
+    /// (role announcements, finish records). An in-band `{"error": …}` record
+    /// throws, because servers report mid-stream failures that way with a 200.
+    static func streamDelta(_ line: String) throws -> String? {
+        guard let object = ServerSentEvents.jsonObject(of: line) else { return nil }
+        if let error = object["error"] as? [String: Any] {
+            throw LLMError.requestFailed((error["message"] as? String) ?? "stream error")
+        }
+        guard let choices = object["choices"] as? [[String: Any]],
+              let delta = choices.first?["delta"] as? [String: Any] else {
+            return nil
+        }
+        return delta["content"] as? String
+    }
+
+    /// Parse an OpenAI-compatible `GET /models` reply: `data[].id`, with
+    /// `created` as Unix seconds when present.
+    static func parseModels(_ data: Data) throws -> [LLMModelInfo] {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let entries = object["data"] as? [[String: Any]] else {
+            throw LLMError.decodingFailed("no `data` array in the models reply")
+        }
+        return entries.compactMap { entry in
+            guard let id = entry["id"] as? String, !id.isEmpty else { return nil }
+            let created = (entry["created"] as? TimeInterval).map(Date.init(timeIntervalSince1970:))
+            return LLMModelInfo(id: id, displayName: entry["name"] as? String, created: created)
+        }
     }
 }

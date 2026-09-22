@@ -10,8 +10,10 @@ import Foundation
 /// The everyday entry point: wrap an engine and query it.
 ///
 /// ```swift
-/// let llm = LLM(RemoteEngine(model: "gpt-4o", endpoint: .openAI, apiKey: key))
+/// let llm = LLM(AnthropicEngine(model: "claude-opus-5", apiKey: key))
 /// let reply = try await llm.generate("Summarize this…")
+/// for try await token in llm.stream("Write a haiku") { print(token, terminator: "") }
+/// let models = try await llm.availableModels()   // live, newest first
 /// ```
 public struct LLM: Sendable {
 
@@ -43,8 +45,8 @@ public struct LLM: Sendable {
         try await engine.respond(to: messages, options: options)
     }
 
-    /// Stream a reply to a single prompt as text chunks (live tokens on the
-    /// MLX engine; a single final chunk on engines that don't stream).
+    /// Stream a reply to a single prompt as text chunks — live tokens on every
+    /// bundled engine (cloud SSE, Apple snapshots, MLX tokens).
     public func stream(_ prompt: String, options: GenerationOptions = GenerationOptions()) -> AsyncThrowingStream<String, Error> {
         engine.streamResponse(to: [.user(prompt)], options: options)
     }
