@@ -5,6 +5,7 @@
 
 import XCTest
 @testable import LLMKit
+import FoundationModels
 
 final class LLMKitTests: XCTestCase {
 
